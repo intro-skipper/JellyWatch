@@ -82,7 +82,22 @@ class PlayerActivity : Activity() {
         api = JellyfinApi(session)
         playSessionId = UUID.randomUUID().toString().replace("-", "")
         setContentView(createPlayerView())
-        initializePlayer()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (player == null) initializePlayer()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        player?.play()
+    }
+
+    override fun onPause() {
+        player?.pause()
+        handler.removeCallbacks(progressReporter)
+        super.onPause()
     }
 
     private fun createPlayerView(): View {
@@ -123,6 +138,8 @@ class PlayerActivity : Activity() {
     }
 
     private fun initializePlayer() {
+        usingDirectFallback = false
+        hasReportedStart = false
         val view = findViewById<PlayerView>(PLAYER_VIEW_ID)
         player = ExoPlayer.Builder(this).build().also { exoPlayer ->
             view.player = exoPlayer
@@ -174,12 +191,21 @@ class PlayerActivity : Activity() {
     override fun onStop() {
         handler.removeCallbacks(progressReporter)
         report("Stopped")
-        player?.release()
+        player?.let { exoPlayer ->
+            jellyItem = jellyItem.copy(
+                playbackTicks = jellyItem.playbackTicks + exoPlayer.currentPosition * 10_000L
+            )
+            findViewById<PlayerView>(PLAYER_VIEW_ID).player = null
+            exoPlayer.release()
+        }
         player = null
         super.onStop()
     }
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        player?.release()
+        player = null
         reporter.shutdown()
         super.onDestroy()
     }
