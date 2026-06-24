@@ -41,6 +41,7 @@ class MainActivity : Activity() {
     private val muted = Color.rgb(185, 180, 190)
 
     private lateinit var store: SessionStore
+    private lateinit var homePreferences: HomeScreenPreferences
     private var session: Session? = null
     private var api: JellyfinApi? = null
     private val art = ArtworkLoader()
@@ -52,6 +53,7 @@ class MainActivity : Activity() {
     private sealed class Screen {
         data object Login : Screen()
         data object Home : Screen()
+        data object HomeSettings : Screen()
         data object Search : Screen()
         data class Library(val title: String, val parentId: String) : Screen()
         data class Details(val item: JellyItem) : Screen()
@@ -64,6 +66,7 @@ class MainActivity : Activity() {
         window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         store = SessionStore(this)
+        homePreferences = HomeScreenPreferences(this)
         session = store.load()
         api = session?.let(::JellyfinApi)
         navigate(if (session == null) Screen.Login else Screen.Home, replace = true)
@@ -95,6 +98,7 @@ class MainActivity : Activity() {
         when (screen) {
             Screen.Login -> renderLogin()
             Screen.Home -> loadHome()
+            Screen.HomeSettings -> renderHomeSettings()
             Screen.Search -> renderSearch()
             is Screen.Library -> loadLibrary(screen)
             is Screen.Details -> renderDetails(screen.item)
@@ -225,16 +229,111 @@ class MainActivity : Activity() {
         }, 3_000)
     }
 
+    private fun showHomeOptions() {
+        AlertDialog.Builder(this)
+            .setTitle("Options")
+            .setItems(arrayOf("Customize home", "Sign out")) { _, choice ->
+                when (choice) {
+                    0 -> navigate(Screen.HomeSettings)
+                    1 -> confirmSignOut()
+                }
+            }
+            .show()
+    }
+
+    private fun confirmSignOut() {
+        AlertDialog.Builder(this)
+            .setTitle("Sign out?")
+            .setMessage("Remove this Jellyfin account from the watch?")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Sign out") { _, _ ->
+                store.clear()
+                session = null
+                api = null
+                navigate(Screen.Login, replace = true)
+            }
+            .show()
+    }
+
+    private fun renderHomeSettings() {
+        val settings = homePreferences.load()
+        val body = column()
+        body.setPadding(dp(22), dp(34), dp(22), dp(52))
+        body.addView(backHeader("Customize home"))
+        body.addView(text("Sections appear on Home in this order. Turn each section on or off, or move it up and down.", 12f, muted), matchWrap(top = 7, bottom = 10))
+        settings.forEachIndexed { index, setting ->
+            body.addView(homeSectionSettingCard(settings, index, setting), matchWrap(bottom = 8))
+        }
+        setContent(screen(body))
+    }
+
+    private fun homeSectionSettingCard(
+        settings: List<HomeSectionSetting>,
+        index: Int,
+        setting: HomeSectionSetting
+    ): View {
+        val card = column().apply {
+            background = rounded(panel, 18f)
+            setPadding(dp(12), dp(10), dp(12), dp(11))
+        }
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        heading.addView(text(setting.section.title, 15f, Color.WHITE, bold = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val toggle = actionButton(if (setting.enabled) "On" else "Off", primary = setting.enabled)
+        heading.addView(toggle, LinearLayout.LayoutParams(dp(72), dp(40)))
+        card.addView(heading)
+
+        val order = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val moveUp = actionButton("Move up", primary = false).apply { isEnabled = index > 0 }
+        val moveDown = actionButton("Move down", primary = false).apply { isEnabled = index < settings.lastIndex }
+        order.addView(moveUp, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) })
+        order.addView(moveDown, LinearLayout.LayoutParams(0, dp(40), 1f))
+        card.addView(order, matchWrap(top = 8))
+
+        toggle.setOnClickListener {
+            val updated = settings.toMutableList()
+            updated[index] = setting.copy(enabled = !setting.enabled)
+            saveHomeSettings(updated)
+        }
+        moveUp.setOnClickListener { moveHomeSection(settings, index, index - 1) }
+        moveDown.setOnClickListener { moveHomeSection(settings, index, index + 1) }
+        return card
+    }
+
+    private fun moveHomeSection(settings: List<HomeSectionSetting>, from: Int, to: Int) {
+        if (to !in settings.indices) return
+        val updated = settings.toMutableList()
+        val moved = updated.removeAt(from)
+        updated.add(to, moved)
+        saveHomeSettings(updated)
+    }
+
+    private fun saveHomeSettings(settings: List<HomeSectionSetting>) {
+        homePreferences.save(settings)
+        renderHomeSettings()
+    }
+
     private fun loadHome() {
         val token = generation
         setContent(loading("Loading ${session?.userName ?: "Jellyfin"}…"))
         work(
             block = {
                 val current = requireNotNull(api)
-                Triple(current.resumeItems(), current.latest(), current.libraries())
+                val settings = homePreferences.load()
+                val sections = settings.filter { it.enabled }.associate { setting ->
+                    setting.section to when (setting.section) {
+                        HomeSection.ContinueWatching -> current.resumeItems()
+                        HomeSection.Libraries -> current.libraries()
+                        HomeSection.NextUp -> current.nextUp()
+                        HomeSection.RecentlyAdded -> current.latest()
+                    }
+                }
+                settings to sections
             },
-            success = { (resume, latest, libraries) ->
-                if (token == generation) renderHome(resume, latest, libraries)
+            success = { (settings, sections) ->
+                if (token == generation) renderHome(settings, sections)
             },
             failure = {
                 if (token == generation) renderError("Couldn't load your server", it) { render(Screen.Home) }
@@ -242,7 +341,10 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun renderHome(resume: List<JellyItem>, latest: List<JellyItem>, libraries: List<JellyItem>) {
+    private fun renderHome(
+        settings: List<HomeSectionSetting>,
+        sections: Map<HomeSection, List<JellyItem>>
+    ) {
         val body = column()
         body.setPadding(dp(22), dp(32), dp(22), dp(52))
 
@@ -253,42 +355,38 @@ class MainActivity : Activity() {
 
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val search = iconButton(R.drawable.ic_search, "Search", primary = true)
-        val refresh = iconButton(R.drawable.ic_refresh, "Refresh libraries", primary = false)
-        val signOut = iconButton(R.drawable.ic_more, "Account options", primary = false)
+        val refresh = iconButton(R.drawable.ic_refresh, "Refresh home", primary = false)
+        val options = iconButton(R.drawable.ic_more, "Home and account options", primary = false)
         actions.addView(search, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(5) })
         actions.addView(refresh, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(5) })
-        actions.addView(signOut, LinearLayout.LayoutParams(0, dp(44), 1f))
+        actions.addView(options, LinearLayout.LayoutParams(0, dp(44), 1f))
         body.addView(actions, matchWrap(bottom = 8))
         search.setOnClickListener { navigate(Screen.Search) }
         refresh.setOnClickListener { render(Screen.Home) }
-        signOut.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Sign out?")
-                .setMessage("Remove this Jellyfin account from the watch?")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Sign out") { _, _ ->
-                    store.clear()
-                    session = null
-                    api = null
-                    navigate(Screen.Login, replace = true)
-                }
-                .show()
+        options.setOnClickListener { showHomeOptions() }
+
+        val enabled = settings.filter { it.enabled }
+        if (enabled.isEmpty()) {
+            body.addView(emptyState("No home sections enabled. Use the options button to customize Home."))
         }
-
-        if (resume.isNotEmpty()) addShelf(body, "Continue watching", resume)
-        if (latest.isNotEmpty()) addShelf(body, "Recently added", latest)
-
-        body.addView(sectionTitle("Libraries"))
-        if (libraries.isEmpty()) {
-            body.addView(emptyState("No libraries found"))
-        } else {
-            libraries.forEach { library -> body.addView(libraryRow(library), matchWrap(bottom = 7)) }
+        enabled.forEach { setting ->
+            val items = sections[setting.section].orEmpty()
+            when (setting.section) {
+                HomeSection.ContinueWatching -> addShelf(body, setting.section.title, items, "Nothing to continue")
+                HomeSection.Libraries -> addLibraries(body, items)
+                HomeSection.NextUp -> addShelf(body, setting.section.title, items, "Nothing is up next")
+                HomeSection.RecentlyAdded -> addShelf(body, setting.section.title, items, "Nothing recently added")
+            }
         }
         setContent(screen(body))
     }
 
-    private fun addShelf(parent: LinearLayout, title: String, items: List<JellyItem>) {
+    private fun addShelf(parent: LinearLayout, title: String, items: List<JellyItem>, emptyMessage: String) {
         parent.addView(sectionTitle(title))
+        if (items.isEmpty()) {
+            parent.addView(emptyState(emptyMessage))
+            return
+        }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         items.forEach { row.addView(posterCard(it), LinearLayout.LayoutParams(dp(116), dp(176)).apply { marginEnd = dp(8) }) }
         val scroll = HorizontalScrollView(this).apply {
@@ -297,6 +395,15 @@ class MainActivity : Activity() {
             addView(row)
         }
         parent.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(182)))
+    }
+
+    private fun addLibraries(parent: LinearLayout, libraries: List<JellyItem>) {
+        parent.addView(sectionTitle(HomeSection.Libraries.title))
+        if (libraries.isEmpty()) {
+            parent.addView(emptyState("No libraries found"))
+        } else {
+            libraries.forEach { library -> parent.addView(libraryRow(library), matchWrap(bottom = 7)) }
+        }
     }
 
     private fun posterCard(item: JellyItem): View {

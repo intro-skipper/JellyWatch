@@ -5,7 +5,7 @@ A small, watch-native Jellyfin client built for Samsung Galaxy Watch 7 and other
 ## Features
 
 - Secure Jellyfin Quick Connect sign-in — no phone companion app required
-- Continue Watching and Recently Added shelves
+- Configurable home sections for Continue Watching, Libraries, Next Up, and Recently Added
 - Browse Jellyfin libraries
 - Search movies, shows, episodes, video, and music
 - Resume playback and report progress to Jellyfin

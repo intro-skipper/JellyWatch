@@ -61,6 +61,10 @@ class JellyfinApi(private val session: Session) {
         request("Users/${session.userId}/Items/Resume?Limit=$limit&MediaTypes=Video&Fields=${fields()}")
     )
 
+    fun nextUp(limit: Int = 12): List<JellyItem> = itemsFrom(
+        request("Shows/NextUp?UserId=${session.userId}&Limit=$limit&Fields=${fields()}")
+    )
+
     fun libraries(): List<JellyItem> = itemsFrom(
         request("Users/${session.userId}/Views?Fields=PrimaryImageAspectRatio")
     )
