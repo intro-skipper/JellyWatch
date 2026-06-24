@@ -1,15 +1,21 @@
 name: Build and publish APK
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**/README.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'assets/**'
 
 permissions:
   contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -38,6 +44,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Set release tag
+        id: release_tag
+        run: |
+          echo "BUILD_TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Validate signing secrets
         run: |
           if [ -z "${KEYSTORE_PASSWORD}" ] || [ -z "${KEY_ALIAS}" ]; then
@@ -51,23 +63,23 @@ jobs:
       - name: Prepare APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/JellyWatch-${GITHUB_REF_NAME}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/JellyWatch-${BUILD_TAG}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JellyWatch-${{ github.ref_name }}
+          name: JellyWatch-${{ steps.release_tag.outputs.tag }}
           path: dist/*.apk
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish tagged GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish GitHub release
+        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/*.apk --clobber
+          if gh release view "$BUILD_TAG" >/dev/null 2>&1; then
+            gh release upload "$BUILD_TAG" dist/*.apk --clobber
           else
-            gh release create "$GITHUB_REF_NAME" dist/*.apk --generate-notes --title "JellyWatch $GITHUB_REF_NAME"
+            gh release create "$BUILD_TAG" dist/*.apk --target "$GITHUB_SHA" --generate-notes --title "JellyWatch $BUILD_TAG"
           fi
