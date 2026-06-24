@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Jellyfin is commonly hosted over plain HTTP on a trusted home LAN. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <!-- Also honor certificate authorities explicitly installed by the owner. -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
