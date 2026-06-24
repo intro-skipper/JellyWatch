@@ -3,6 +3,18 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: keystoreProperties.getProperty("keyPassword")
+val signingKeyAlias = System.getenv("KEY_ALIAS") ?: keystoreProperties.getProperty("keyAlias")
+val hasSigningInfo = !keystorePassword.isNullOrBlank() &&
+    !signingKeyAlias.isNullOrBlank() &&
+    rootProject.file("signing/release.keystore").exists()
+
 android {
     namespace = "com.jellywatch.client"
     compileSdk = 36
@@ -13,6 +25,30 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (hasSigningInfo) {
+                storeFile = rootProject.file("signing/release.keystore")
+                storePassword = keystorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = keystorePassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (hasSigningInfo) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+        debug {
+            if (hasSigningInfo) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
 
     buildFeatures {

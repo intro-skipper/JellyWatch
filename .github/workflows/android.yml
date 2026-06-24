@@ -15,6 +15,9 @@ jobs:
   build:
     name: Build JellyWatch
     runs-on: ubuntu-latest
+    env:
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
     steps:
       - name: Check out source
@@ -32,13 +35,23 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Validate signing secrets
+        run: |
+          if [ -z "${KEYSTORE_PASSWORD}" ] || [ -z "${KEY_ALIAS}" ]; then
+            echo "Missing required secrets KEYSTORE_PASSWORD and/or KEY_ALIAS."
+            exit 1
+          fi
+
       - name: Build and lint
-        run: ./gradlew :app:lintDebug :app:assembleDebug
+        run: ./gradlew --no-daemon :app:assembleRelease
 
       - name: Prepare APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/JellyWatch-${GITHUB_REF_NAME}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/JellyWatch-${GITHUB_REF_NAME}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
