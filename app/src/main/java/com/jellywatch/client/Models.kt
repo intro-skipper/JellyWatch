@@ -46,6 +46,7 @@ data class JellyItem(
     companion object {
         fun fromJson(json: JSONObject): JellyItem {
             val userData = json.optJSONObject("UserData") ?: JSONObject()
+            val imageTags = json.optJSONObject("ImageTags")
             val backdropTags = json.optJSONArray("BackdropImageTags")
             val mediaSources = json.optJSONArray("MediaSources")
             return JellyItem(
@@ -60,8 +61,10 @@ data class JellyItem(
                 runtimeTicks = json.optLong("RunTimeTicks"),
                 playbackTicks = userData.optLong("PlaybackPositionTicks"),
                 playedPercentage = userData.optDouble("PlayedPercentage", 0.0),
-                primaryImageTag = json.optString("PrimaryImageTag").takeIf { it.isNotBlank() },
-                backdropImageTag = backdropTags?.optString(0)?.takeIf { it.isNotBlank() },
+                primaryImageTag = json.optString("PrimaryImageTag").takeIf { it.isNotBlank() }
+                    ?: imageTags?.optString("Primary")?.takeIf { it.isNotBlank() },
+                backdropImageTag = backdropTags?.optString(0)?.takeIf { it.isNotBlank() }
+                    ?: imageTags?.optString("Backdrop")?.takeIf { it.isNotBlank() },
                 mediaType = json.optString("MediaType").takeIf { it.isNotBlank() },
                 mediaSourceId = mediaSources?.optJSONObject(0)?.optString("Id")?.takeIf { it.isNotBlank() }
             )

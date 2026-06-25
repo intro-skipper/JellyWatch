@@ -34,7 +34,7 @@ class PlayerActivity : Activity() {
     private lateinit var api: JellyfinApi
     private lateinit var jellyItem: JellyItem
     private lateinit var playSessionId: String
-    private var usingDirectFallback = false
+    private var usingTranscodeFallback = false
     private var hasReportedStart = false
     private val reporter = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
@@ -138,12 +138,12 @@ class PlayerActivity : Activity() {
     }
 
     private fun initializePlayer() {
-        usingDirectFallback = false
+        usingTranscodeFallback = false
         hasReportedStart = false
         val view = findViewById<PlayerView>(PLAYER_VIEW_ID)
         player = ExoPlayer.Builder(this).build().also { exoPlayer ->
             view.player = exoPlayer
-            exoPlayer.setMediaItem(MediaItem.fromUri(api.playbackUrl(jellyItem, playSessionId)))
+            exoPlayer.setMediaItem(MediaItem.fromUri(api.directPlaybackUrl(jellyItem)))
             exoPlayer.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY) {
@@ -169,19 +169,19 @@ class PlayerActivity : Activity() {
         val httpError = generateSequence<Throwable>(error) { it.cause }
             .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
             .firstOrNull()
-        if (!usingDirectFallback) {
-            usingDirectFallback = true
+        if (!usingTranscodeFallback) {
+            usingTranscodeFallback = true
             val reason = httpError?.responseCode?.let { "HTTP $it" } ?: error.errorCodeName
-            Toast.makeText(this, "Transcoding unavailable ($reason). Trying the original file…", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Direct playback unavailable ($reason). Trying transcoding…", Toast.LENGTH_LONG).show()
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
-            exoPlayer.setMediaItem(MediaItem.fromUri(api.directPlaybackUrl(jellyItem)))
+            exoPlayer.setMediaItem(MediaItem.fromUri(api.playbackUrl(jellyItem, playSessionId)))
             exoPlayer.prepare()
             exoPlayer.playWhenReady = true
             return
         }
         val message = if (httpError != null) {
-            "Jellyfin returned HTTP ${httpError.responseCode}. Check server permissions and transcoding settings."
+            "Jellyfin returned HTTP ${httpError.responseCode}. Direct playback and transcoding both failed."
         } else {
             "Playback failed: ${error.errorCodeName}"
         }

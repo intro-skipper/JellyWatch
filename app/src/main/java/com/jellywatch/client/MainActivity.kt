@@ -260,7 +260,7 @@ class MainActivity : Activity() {
         val body = column()
         body.setPadding(dp(22), dp(34), dp(22), dp(52))
         body.addView(backHeader("Customize home"))
-        body.addView(text("Sections appear on Home in this order. Turn each section on or off, or move it up and down.", 12f, muted), matchWrap(top = 7, bottom = 10))
+        body.addView(text("Sections appear on Home in this order. Turn each section on or off, or use the arrows to change the order.", 12f, muted), matchWrap(top = 7, bottom = 10))
         settings.forEachIndexed { index, setting ->
             body.addView(homeSectionSettingCard(settings, index, setting), matchWrap(bottom = 8))
         }
@@ -285,11 +285,21 @@ class MainActivity : Activity() {
         heading.addView(toggle, LinearLayout.LayoutParams(dp(72), dp(40)))
         card.addView(heading)
 
-        val order = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val moveUp = actionButton("Move up", primary = false).apply { isEnabled = index > 0 }
-        val moveDown = actionButton("Move down", primary = false).apply { isEnabled = index < settings.lastIndex }
-        order.addView(moveUp, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) })
-        order.addView(moveDown, LinearLayout.LayoutParams(0, dp(40), 1f))
+        val order = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val moveUp = iconButton(R.drawable.ic_arrow_upward, "Move up", primary = false).apply {
+            isEnabled = index > 0
+            alpha = if (isEnabled) 1f else 0.35f
+        }
+        val moveDown = iconButton(R.drawable.ic_arrow_downward, "Move down", primary = false).apply {
+            isEnabled = index < settings.lastIndex
+            alpha = if (isEnabled) 1f else 0.35f
+        }
+        order.addView(moveUp, LinearLayout.LayoutParams(dp(44), dp(40)))
+        order.addView(Space(this), LinearLayout.LayoutParams(0, 1, 1f))
+        order.addView(moveDown, LinearLayout.LayoutParams(dp(44), dp(40)))
         card.addView(order, matchWrap(top = 8))
 
         toggle.setOnClickListener {
@@ -459,10 +469,10 @@ class MainActivity : Activity() {
     private fun renderLibrary(screen: Screen.Library, items: List<JellyItem>) {
         val body = column()
         body.setPadding(dp(22), dp(34), dp(22), dp(52))
-        body.addView(backHeader(screen.title))
-        body.addView(text("${items.size} items", 11f, muted), matchWrap(bottom = 10))
+        body.addView(backHeader(screen.title), matchWrap(bottom = 10))
         if (items.isEmpty()) body.addView(emptyState("Nothing here yet"))
         items.forEach { body.addView(resultRow(it), matchWrap(bottom = 7)) }
+        body.addView(text("${items.size} items", 11f, muted).apply { gravity = Gravity.CENTER }, matchWrap(top = 10))
         setContent(screen(body))
     }
 
@@ -541,7 +551,7 @@ class MainActivity : Activity() {
     private fun renderDetails(item: JellyItem) {
         val body = column()
         body.setPadding(dp(22), dp(28), dp(22), dp(54))
-        body.addView(backHeader("Details"))
+        body.addView(backHeader("Details"), matchWrap(bottom = 12))
         val image = artworkView(ViewGroup.LayoutParams.MATCH_PARENT, dp(190)).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
         }
