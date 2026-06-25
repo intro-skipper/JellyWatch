@@ -382,7 +382,7 @@ class MainActivity : Activity() {
         enabled.forEach { setting ->
             val items = sections[setting.section].orEmpty()
             when (setting.section) {
-                HomeSection.ContinueWatching -> addShelf(body, setting.section.title, items, "Nothing to continue")
+                HomeSection.ContinueWatching -> addShelf(body, setting.section.title, items, "Nothing to continue", resumeDirectly = true)
                 HomeSection.Libraries -> addLibraries(body, items)
                 HomeSection.NextUp -> addShelf(body, setting.section.title, items, "Nothing is up next")
                 HomeSection.RecentlyAdded -> addShelf(body, setting.section.title, items, "Nothing recently added")
@@ -391,14 +391,20 @@ class MainActivity : Activity() {
         setContent(screen(body))
     }
 
-    private fun addShelf(parent: LinearLayout, title: String, items: List<JellyItem>, emptyMessage: String) {
+    private fun addShelf(
+        parent: LinearLayout,
+        title: String,
+        items: List<JellyItem>,
+        emptyMessage: String,
+        resumeDirectly: Boolean = false
+    ) {
         parent.addView(sectionTitle(title))
         if (items.isEmpty()) {
             parent.addView(emptyState(emptyMessage))
             return
         }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        items.forEach { row.addView(posterCard(it), LinearLayout.LayoutParams(dp(116), dp(176)).apply { marginEnd = dp(8) }) }
+        items.forEach { row.addView(posterCard(it, resumeDirectly), LinearLayout.LayoutParams(dp(116), dp(176)).apply { marginEnd = dp(8) }) }
         val scroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             isFillViewport = false
@@ -416,7 +422,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun posterCard(item: JellyItem): View {
+    private fun posterCard(item: JellyItem, resumeDirectly: Boolean): View {
         val card = column()
         card.background = rounded(panel, 18f)
         card.setPadding(dp(5), dp(5), dp(5), dp(7))
@@ -433,7 +439,19 @@ class MainActivity : Activity() {
             }
             card.addView(progress, matchFixed(dp(3), top = 3))
         }
-        card.setOnClickListener { openItem(item) }
+        card.setOnClickListener {
+            if (resumeDirectly && item.isPlayable) {
+                PlayerActivity.start(this, requireNotNull(session), item)
+            } else {
+                openItem(item)
+            }
+        }
+        if (resumeDirectly) {
+            card.setOnLongClickListener {
+                openContinueWatchingSource(item)
+                true
+            }
+        }
         return card
     }
 
@@ -546,6 +564,38 @@ class MainActivity : Activity() {
     private fun openItem(item: JellyItem) {
         if (item.isPlayable) navigate(Screen.Details(item))
         else navigate(Screen.Library(item.name, item.id))
+    }
+
+    private fun openContinueWatchingSource(item: JellyItem) {
+        val parent = continueWatchingParent(item)
+        if (parent != null && history.lastOrNull() != parent) {
+            history.add(parent)
+        }
+        navigate(Screen.Details(item))
+    }
+
+    private fun continueWatchingParent(item: JellyItem): Screen.Library? {
+        if (item.type == "Episode") {
+            val seasonId = item.seasonId ?: item.parentId ?: return null
+            return Screen.Library(seasonTitle(item), seasonId)
+        }
+        val parentId = item.parentId ?: return null
+        return Screen.Library(parentTitle(item), parentId)
+    }
+
+    private fun seasonTitle(item: JellyItem): String {
+        return listOfNotNull(
+            item.seriesName,
+            item.parentIndexNumber?.let { "Season $it" }
+        ).joinToString(" - ").ifBlank { "Season" }
+    }
+
+    private fun parentTitle(item: JellyItem): String {
+        return when (item.type) {
+            "Movie" -> "Movies"
+            "Audio" -> "Music"
+            else -> "Library"
+        }
     }
 
     private fun renderDetails(item: JellyItem) {

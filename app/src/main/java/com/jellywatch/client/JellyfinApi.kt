@@ -215,7 +215,7 @@ class JellyfinApi(private val session: Session) {
         } ?: emptyList()
     }
 
-    private fun fields() = "Overview,PrimaryImageAspectRatio,MediaSources,MediaStreams,Path"
+    private fun fields() = "Overview,PrimaryImageAspectRatio,MediaSources,MediaStreams,Path,ParentId,SeriesId,SeasonId"
 
     companion object {
         fun normalizeServer(raw: String): String {
