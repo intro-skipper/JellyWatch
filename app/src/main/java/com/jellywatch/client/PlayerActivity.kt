@@ -58,6 +58,7 @@ class PlayerActivity : Activity() {
     private var controlsVisible = true
     private var isScrubbing = false
     private var stretchVideo = false
+    private var shouldPlayWhenActive = true
     private var mediaSegments = emptyList<MediaSegment>()
     private var currentSegment: MediaSegment? = null
 
@@ -124,13 +125,14 @@ class PlayerActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        player?.play()
+        if (shouldPlayWhenActive) player?.play()
         showControls()
         handler.removeCallbacks(controlsProgressUpdater)
         handler.post(controlsProgressUpdater)
     }
 
     override fun onPause() {
+        shouldPlayWhenActive = player?.playWhenReady == true
         player?.pause()
         handler.removeCallbacks(progressReporter)
         handler.removeCallbacks(controlsProgressUpdater)
@@ -308,7 +310,6 @@ class PlayerActivity : Activity() {
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     updateControls()
-                    showControls()
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
@@ -316,7 +317,7 @@ class PlayerActivity : Activity() {
                 }
             })
             exoPlayer.prepare()
-            exoPlayer.playWhenReady = true
+            exoPlayer.playWhenReady = shouldPlayWhenActive
         }
         handler.removeCallbacks(controlsProgressUpdater)
         handler.post(controlsProgressUpdater)
@@ -334,7 +335,7 @@ class PlayerActivity : Activity() {
             exoPlayer.clearMediaItems()
             exoPlayer.setMediaItem(MediaItem.fromUri(api.playbackUrl(jellyItem, playSessionId)), resumePositionMs())
             exoPlayer.prepare()
-            exoPlayer.playWhenReady = true
+            exoPlayer.playWhenReady = shouldPlayWhenActive
             return
         }
         val message = if (httpError != null) {
@@ -485,8 +486,10 @@ class PlayerActivity : Activity() {
     private fun togglePlayback() {
         val exoPlayer = player ?: return
         if (exoPlayer.isPlaying) {
+            shouldPlayWhenActive = false
             exoPlayer.pause()
         } else {
+            shouldPlayWhenActive = true
             exoPlayer.play()
         }
         updateControls()
