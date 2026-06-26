@@ -10,6 +10,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -19,6 +20,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.Space
 import android.widget.TextView
 import android.widget.Toast
 import androidx.annotation.OptIn
@@ -51,9 +53,13 @@ class PlayerActivity : Activity() {
     private lateinit var progressTrack: FrameLayout
     private lateinit var progressFill: View
     private lateinit var resizeModeToggle: ImageButton
+    private lateinit var segmentSkipButton: TextView
+    private lateinit var segmentSkipSpacer: Space
     private var controlsVisible = true
     private var isScrubbing = false
     private var stretchVideo = false
+    private var mediaSegments = emptyList<MediaSegment>()
+    private var currentSegment: MediaSegment? = null
 
     private val progressReporter = object : Runnable {
         override fun run() {
@@ -108,6 +114,7 @@ class PlayerActivity : Activity() {
         api = JellyfinApi(session)
         playSessionId = UUID.randomUUID().toString().replace("-", "")
         setContentView(createPlayerView())
+        loadMediaSegments()
     }
 
     override fun onStart() {
@@ -207,7 +214,26 @@ class PlayerActivity : Activity() {
         })
         controlRow.addView(forward, LinearLayout.LayoutParams(dp(46), dp(46)))
         val controlsCenterArea = FrameLayout(this)
-        controlsCenterArea.addView(controlRow, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        segmentSkipButton = textPillButton("Skip segment", "Skip segment").apply {
+            visibility = View.GONE
+            setOnClickListener {
+                skipCurrentSegment()
+                showControls()
+            }
+        }
+        segmentSkipSpacer = Space(this).apply { visibility = View.GONE }
+        val centerStack = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            addView(Space(this@PlayerActivity), LinearLayout.LayoutParams(1, 0, 1f))
+            addView(controlRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(segmentSkipSpacer, LinearLayout.LayoutParams(1, 0, 1f))
+            addView(segmentSkipButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(38)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            })
+            addView(Space(this@PlayerActivity), LinearLayout.LayoutParams(1, 0, 1f))
+        }
+        controlsCenterArea.addView(centerStack, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         (controlsOverlay as FrameLayout).addView(controlsCenterArea, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
             topMargin = controlsTopInset
             bottomMargin = controlsBottomInset
@@ -351,6 +377,19 @@ class PlayerActivity : Activity() {
         }
     }
 
+    private fun loadMediaSegments() {
+        reporter.execute {
+            val segments = runCatching { api.mediaSegments(jellyItem.id) }
+                .onFailure { Log.w(TAG, "Could not load media segments for ${jellyItem.id}", it) }
+                .getOrDefault(emptyList())
+            Log.d(TAG, "Loaded ${segments.size} media segments for ${jellyItem.name}")
+            handler.post {
+                mediaSegments = segments
+                updateControls()
+            }
+        }
+    }
+
     private fun controlButton(drawableRes: Int, description: String, size: Int) = ImageButton(this).apply {
         setImageResource(drawableRes)
         contentDescription = description
@@ -380,6 +419,23 @@ class PlayerActivity : Activity() {
         }
         minWidth = size
         minHeight = size
+        isClickable = true
+        isFocusable = true
+    }
+
+    private fun textPillButton(label: String, description: String) = TextView(this).apply {
+        text = label
+        contentDescription = description
+        setTextColor(Color.WHITE)
+        textSize = 13f
+        typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        includeFontPadding = false
+        setPadding(dp(16), 0, dp(16), 0)
+        background = GradientDrawable().apply {
+            setColor(Color.argb(220, 22, 19, 25))
+            cornerRadius = dp(19).toFloat()
+        }
         isClickable = true
         isFocusable = true
     }
@@ -454,12 +510,22 @@ class PlayerActivity : Activity() {
         updateControls()
     }
 
+    private fun skipCurrentSegment() {
+        val segment = currentSegment ?: return
+        val exoPlayer = player ?: return
+        exoPlayer.seekTo(segment.endTicks / 10_000L)
+        currentSegment = null
+        updateControls()
+    }
+
     private fun updateControls() {
         if (!::playPause.isInitialized || !::seekBar.isInitialized || !::progressFill.isInitialized) return
         val exoPlayer = player
         val isPlaying = exoPlayer?.isPlaying == true
         playPause.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play_arrow)
         playPause.contentDescription = if (isPlaying) "Pause" else "Play"
+        val currentTicks = (exoPlayer?.currentPosition ?: 0L) * 10_000L
+        updateSegmentSkipButton(currentTicks)
         val duration = exoPlayer?.duration ?: C.TIME_UNSET
         val canSeek = duration != C.TIME_UNSET && duration > 0
         seekBar.isEnabled = canSeek
@@ -479,6 +545,26 @@ class PlayerActivity : Activity() {
         }
     }
 
+    private fun updateSegmentSkipButton(positionTicks: Long) {
+        if (!::segmentSkipButton.isInitialized) return
+        val segment = mediaSegments.firstOrNull { segment ->
+            positionTicks >= segment.startTicks && positionTicks < segment.endTicks
+        }
+        currentSegment = segment
+        if (segment == null) {
+            segmentSkipButton.visibility = View.GONE
+            segmentSkipSpacer.visibility = View.GONE
+            return
+        }
+        segmentSkipButton.text = segment.label
+        segmentSkipButton.contentDescription = segment.label
+        segmentSkipSpacer.visibility = View.VISIBLE
+        if (segmentSkipButton.visibility != View.VISIBLE) {
+            segmentSkipButton.visibility = View.VISIBLE
+            showControls()
+        }
+    }
+
     private fun updateProgressBar(progress: Float) {
         if (!::progressTrack.isInitialized || !::progressFill.isInitialized) return
         progressTrack.post {
@@ -495,6 +581,7 @@ class PlayerActivity : Activity() {
         private const val PLAYER_VIEW_ID = 0x4A57
         private const val CONTROLS_TIMEOUT_MS = 3_500L
         private const val SEEK_BAR_MAX = 1000
+        private const val TAG = "JellyWatchPlayer"
         private const val EXTRA_SERVER = "server"
         private const val EXTRA_TOKEN = "token"
         private const val EXTRA_USER_ID = "userId"

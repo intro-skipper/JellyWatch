@@ -55,7 +55,7 @@ class MainActivity : Activity() {
         data object Home : Screen()
         data object HomeSettings : Screen()
         data object Search : Screen()
-        data class Library(val title: String, val parentId: String) : Screen()
+        data class Library(val title: String, val parentId: String, val parentType: String? = null) : Screen()
         data class Details(val item: JellyItem) : Screen()
     }
 
@@ -470,7 +470,7 @@ class MainActivity : Activity() {
         labels.addView(text("Browse library", 11f, muted))
         row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(text("›", 26f, teal))
-        row.setOnClickListener { navigate(Screen.Library(item.name, item.id)) }
+        row.setOnClickListener { navigate(Screen.Library(item.name, item.id, item.type)) }
         return row
     }
 
@@ -489,7 +489,7 @@ class MainActivity : Activity() {
         body.setPadding(dp(22), dp(34), dp(22), dp(52))
         body.addView(backHeader(screen.title), matchWrap(bottom = 10))
         if (items.isEmpty()) body.addView(emptyState("Nothing here yet"))
-        items.forEach { body.addView(resultRow(it), matchWrap(bottom = 7)) }
+        items.forEach { body.addView(resultRow(it, directPlayback = shouldDirectPlayFromLibrary(screen, it)), matchWrap(bottom = 7)) }
         body.addView(text("${items.size} items", 11f, muted).apply { gravity = Gravity.CENTER }, matchWrap(top = 10))
         setContent(screen(body))
     }
@@ -542,7 +542,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun resultRow(item: JellyItem): View {
+    private fun resultRow(item: JellyItem, directPlayback: Boolean = false): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -557,13 +557,33 @@ class MainActivity : Activity() {
         labels.addView(text(item.subtitle, 11f, muted, maxLines = 2), matchWrap(top = 2))
         row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(text(if (item.isPlayable) "▶" else "›", 16f, teal))
-        row.setOnClickListener { openItem(item) }
+        row.setOnClickListener {
+            if (directPlayback && item.isPlayable) {
+                PlayerActivity.start(this, requireNotNull(session), item)
+            } else {
+                openItem(item)
+            }
+        }
+        if (directPlayback) {
+            row.setOnLongClickListener {
+                navigate(Screen.Details(item))
+                true
+            }
+        }
         return row
     }
 
     private fun openItem(item: JellyItem) {
         if (item.isPlayable) navigate(Screen.Details(item))
-        else navigate(Screen.Library(item.name, item.id))
+        else navigate(Screen.Library(item.name, item.id, item.type))
+    }
+
+    private fun shouldDirectPlayFromLibrary(screen: Screen.Library, item: JellyItem): Boolean {
+        return when (screen.parentType) {
+            "Season" -> item.type == "Episode"
+            "BoxSet", "CollectionFolder" -> item.type == "Movie"
+            else -> false
+        }
     }
 
     private fun openContinueWatchingSource(item: JellyItem) {
@@ -577,7 +597,7 @@ class MainActivity : Activity() {
     private fun continueWatchingParent(item: JellyItem): Screen.Library? {
         if (item.type == "Episode") {
             val seasonId = item.seasonId ?: item.parentId ?: return null
-            return Screen.Library(seasonTitle(item), seasonId)
+            return Screen.Library(seasonTitle(item), seasonId, "Season")
         }
         val parentId = item.parentId ?: return null
         return Screen.Library(parentTitle(item), parentId)

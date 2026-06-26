@@ -106,6 +106,22 @@ class JellyfinApi(private val session: Session) {
         request("Users/${session.userId}/Items/$id")
     )
 
+    fun mediaSegments(itemId: String): List<MediaSegment> {
+        val response = request("MediaSegments/$itemId")
+        val items = response.optJSONArray("Items") ?: return emptyList()
+        return (0 until items.length()).mapNotNull { index ->
+            val segment = items.optJSONObject(index) ?: return@mapNotNull null
+            val startTicks = segment.optLong("StartTicks", -1L)
+            val endTicks = segment.optLong("EndTicks", -1L)
+            if (startTicks < 0 || endTicks <= startTicks) return@mapNotNull null
+            MediaSegment(
+                type = segment.optString("Type", "Segment"),
+                startTicks = startTicks,
+                endTicks = endTicks
+            )
+        }.sortedBy { it.startTicks }
+    }
+
     fun imageUrl(item: JellyItem, width: Int = 260, backdrop: Boolean = false): String? {
         val imageType = if (backdrop && item.backdropImageTag != null) "Backdrop" else "Primary"
         val tag = if (imageType == "Backdrop") item.backdropImageTag else item.primaryImageTag

@@ -77,3 +77,19 @@ data class JellyItem(
         }
     }
 }
+
+data class MediaSegment(
+    val type: String,
+    val startTicks: Long,
+    val endTicks: Long
+) {
+    val label: String
+        get() = when (type.lowercase()) {
+            "intro" -> "Skip intro"
+            "outro" -> "Skip outro"
+            "recap" -> "Skip recap"
+            "preview" -> "Skip preview"
+            "commercial" -> "Skip ad"
+            else -> "Skip segment"
+        }
+}
