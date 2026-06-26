@@ -158,7 +158,6 @@ class JellyfinApi(private val session: Session) {
             .appendQueryParameter("SegmentContainer", "ts")
             .appendQueryParameter("MinSegments", "1")
             .appendQueryParameter("BreakOnNonKeyFrames", "true")
-            .appendQueryParameter("StartTimeTicks", item.playbackTicks.toString())
             .build().toString()
     }
 

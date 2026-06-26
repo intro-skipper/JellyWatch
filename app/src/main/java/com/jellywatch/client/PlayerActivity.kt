@@ -218,7 +218,6 @@ class PlayerActivity : Activity() {
             visibility = View.GONE
             setOnClickListener {
                 skipCurrentSegment()
-                showControls()
             }
         }
         segmentSkipSpacer = Space(this).apply { visibility = View.GONE }
@@ -293,7 +292,7 @@ class PlayerActivity : Activity() {
         val view = findViewById<PlayerView>(PLAYER_VIEW_ID)
         player = ExoPlayer.Builder(this).build().also { exoPlayer ->
             view.player = exoPlayer
-            exoPlayer.setMediaItem(MediaItem.fromUri(api.directPlaybackUrl(jellyItem)))
+            exoPlayer.setMediaItem(MediaItem.fromUri(api.directPlaybackUrl(jellyItem)), resumePositionMs())
             exoPlayer.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY) {
@@ -333,7 +332,7 @@ class PlayerActivity : Activity() {
             Toast.makeText(this, "Direct playback unavailable ($reason). Trying transcoding…", Toast.LENGTH_LONG).show()
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
-            exoPlayer.setMediaItem(MediaItem.fromUri(api.playbackUrl(jellyItem, playSessionId)))
+            exoPlayer.setMediaItem(MediaItem.fromUri(api.playbackUrl(jellyItem, playSessionId)), resumePositionMs())
             exoPlayer.prepare()
             exoPlayer.playWhenReady = true
             return
@@ -353,7 +352,7 @@ class PlayerActivity : Activity() {
         report("Stopped")
         player?.let { exoPlayer ->
             jellyItem = jellyItem.copy(
-                playbackTicks = jellyItem.playbackTicks + exoPlayer.currentPosition * 10_000L
+                playbackTicks = exoPlayer.currentPosition * 10_000L
             )
             findViewById<PlayerView>(PLAYER_VIEW_ID).player = null
             exoPlayer.release()
@@ -371,7 +370,7 @@ class PlayerActivity : Activity() {
     }
 
     private fun report(event: String) {
-        val positionTicks = jellyItem.playbackTicks + (player?.currentPosition ?: 0L) * 10_000L
+        val positionTicks = (player?.currentPosition ?: resumePositionMs()) * 10_000L
         reporter.execute {
             api.reportPlayback(event, jellyItem.id, playSessionId, positionTicks)
         }
@@ -513,9 +512,10 @@ class PlayerActivity : Activity() {
     private fun skipCurrentSegment() {
         val segment = currentSegment ?: return
         val exoPlayer = player ?: return
+        handler.removeCallbacks(controlsHider)
         exoPlayer.seekTo(segment.endTicks / 10_000L)
+        setControlsVisible(false)
         currentSegment = null
-        updateControls()
     }
 
     private fun updateControls() {
@@ -576,6 +576,8 @@ class PlayerActivity : Activity() {
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
+
+    private fun resumePositionMs() = (jellyItem.playbackTicks / 10_000L).coerceAtLeast(0L)
 
     companion object {
         private const val PLAYER_VIEW_ID = 0x4A57
