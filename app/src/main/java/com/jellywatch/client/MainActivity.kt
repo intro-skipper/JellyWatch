@@ -504,7 +504,7 @@ class MainActivity : Activity() {
         sections: Map<HomeSection, List<JellyItem>>
     ) {
         val body = column()
-        body.setPadding(dp(22), dp(32), dp(22), dp(52))
+        body.setPadding(dp(22), dp(32), dp(22), dp(28))
 
         val eyebrow = text("JELLYWATCH", 11f, teal, bold = true).apply { letterSpacing = .16f }
         body.addView(eyebrow)
@@ -566,7 +566,7 @@ class MainActivity : Activity() {
         if (libraries.isEmpty()) {
             parent.addView(emptyState("No libraries found"))
         } else {
-            libraries.forEach { library -> parent.addView(libraryRow(library), matchWrap(bottom = 7)) }
+            libraries.forEach { library -> parent.addView(libraryCard(library), matchFixed(dp(116), bottom = 10)) }
         }
     }
 
@@ -600,6 +600,39 @@ class MainActivity : Activity() {
                 true
             }
         }
+        return card
+    }
+
+    private fun libraryCard(item: JellyItem): View {
+        val card = FrameLayout(this).apply {
+            background = rounded(panel, 14f)
+            clipToOutline = true
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: android.graphics.Outline) {
+                    outline.setRoundRect(0, 0, view.width, view.height, dp(14).toFloat())
+                }
+            }
+            setOnClickListener { navigate(Screen.Library(item.name, item.id, item.type)) }
+        }
+        val image = artworkView(ViewGroup.LayoutParams.MATCH_PARENT, dp(116)).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+        }
+        art.load(api?.imageUrl(item, 520, backdrop = true), image)
+        card.addView(image, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        card.addView(View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.TRANSPARENT, Color.argb(210, 0, 0, 0))
+            )
+        }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(76), Gravity.BOTTOM))
+        card.addView(text(item.name, 17f, Color.WHITE, bold = true, maxLines = 2).apply {
+            gravity = Gravity.START or Gravity.BOTTOM
+            setShadowLayer(4f, 0f, 1f, Color.argb(170, 0, 0, 0))
+        }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.START).apply {
+            leftMargin = dp(13)
+            rightMargin = dp(13)
+            bottomMargin = dp(12)
+        })
         return card
     }
 
