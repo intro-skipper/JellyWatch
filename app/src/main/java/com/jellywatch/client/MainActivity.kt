@@ -55,6 +55,8 @@ class MainActivity : Activity() {
         data object Home : Screen()
         data object HomeSettings : Screen()
         data object Search : Screen()
+        data object ServerDiscovery : Screen()
+        data class ManualLogin(val server: String) : Screen()
         data class Library(val title: String, val parentId: String, val parentType: String? = null) : Screen()
         data class Details(val item: JellyItem) : Screen()
     }
@@ -100,6 +102,8 @@ class MainActivity : Activity() {
             Screen.Home -> loadHome()
             Screen.HomeSettings -> renderHomeSettings()
             Screen.Search -> renderSearch()
+            Screen.ServerDiscovery -> discoverServers()
+            is Screen.ManualLogin -> renderManualLogin(screen.server)
             is Screen.Library -> loadLibrary(screen)
             is Screen.Details -> renderDetails(screen.item)
         }
@@ -107,7 +111,7 @@ class MainActivity : Activity() {
 
     private fun renderLogin() {
         val body = column(gravity = Gravity.CENTER_HORIZONTAL)
-        body.setPadding(dp(30), dp(42), dp(30), dp(48))
+        body.setPadding(dp(30), dp(38), dp(30), dp(48))
 
         val logo = ImageView(this).apply {
             setImageResource(com.jellywatch.client.R.drawable.ic_jellywatch)
@@ -116,25 +120,29 @@ class MainActivity : Activity() {
         body.addView(logo, LinearLayout.LayoutParams(dp(82), dp(82)))
         body.addView(text("JellyWatch", 24f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER })
         body.addView(text("Jellyfin, right on your wrist", 13f, muted).apply { gravity = Gravity.CENTER })
-        body.addView(space(20))
+        body.addView(space(22))
 
         val server = input("Server address", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
-        body.addView(server, matchWrap(bottom = 8))
+        body.addView(server, matchFixed(dp(50), bottom = 15))
 
-        val connect = actionButton("Get sign-in code", primary = true)
-        body.addView(connect, matchFixed(dp(50), bottom = 12))
+        val quickConnect = actionButton("Quick Connect", primary = true)
+        body.addView(quickConnect, matchFixed(dp(50), bottom = 9))
+        val discover = actionButton("Find server", primary = false)
+        body.addView(discover, matchFixed(dp(46), bottom = 14))
+        val manual = actionButton("Sign in manually", primary = false)
+        body.addView(manual, matchFixed(dp(46), bottom = 9))
         body.addView(text("Enter the complete address, such as\nhttps://jellyfin.example.com", 11f, muted).apply {
             gravity = Gravity.CENTER
         })
 
-        connect.setOnClickListener {
+        quickConnect.setOnClickListener {
             val normalized = runCatching { JellyfinApi.normalizeServer(server.text.toString()) }
                 .getOrElse {
                     toast(it.message ?: "Invalid server address")
                     return@setOnClickListener
                 }
-            connect.isEnabled = false
-            connect.text = "Connecting…"
+            quickConnect.isEnabled = false
+            quickConnect.text = "Connecting..."
             val pending = Session(normalized, "", "", "", store.deviceId())
             val pendingApi = JellyfinApi(pending)
             work(
@@ -145,13 +153,40 @@ class MainActivity : Activity() {
                     pollQuickConnect(pendingApi, quickConnect.secret, token, attemptsLeft = 100)
                 },
                 failure = {
-                    connect.isEnabled = true
-                    connect.text = "Get sign-in code"
+                    quickConnect.isEnabled = true
+                    quickConnect.text = "Quick Connect"
                     toast("Could not start Quick Connect: ${friendlyError(it)}")
                 }
             )
         }
+        manual.setOnClickListener {
+            val normalized = runCatching { JellyfinApi.normalizeServer(server.text.toString()) }
+                .getOrElse {
+                    toast(it.message ?: "Invalid server address")
+                    return@setOnClickListener
+                }
+            navigate(Screen.ManualLogin(normalized))
+        }
+        discover.setOnClickListener { navigate(Screen.ServerDiscovery) }
         setContent(screen(body))
+    }
+
+    private fun beginQuickConnect(server: String) {
+        setContent(loading("Connecting to Jellyfin..."))
+        val pending = Session(server, "", "", "", store.deviceId())
+        val pendingApi = JellyfinApi(pending)
+        work(
+            block = { pendingApi.initiateQuickConnect() },
+            success = { quickConnect ->
+                val token = ++generation
+                renderQuickConnect(server, quickConnect.code)
+                pollQuickConnect(pendingApi, quickConnect.secret, token, attemptsLeft = 100)
+            },
+            failure = {
+                toast("Could not start Quick Connect: ${friendlyError(it)}")
+                render(Screen.Login)
+            }
+        )
     }
 
     private fun renderQuickConnect(server: String, code: String) {
@@ -182,6 +217,119 @@ class MainActivity : Activity() {
         cancel.setOnClickListener { render(Screen.Login) }
         setContent(screen(body))
     }
+
+    private fun renderManualLogin(server: String) {
+        val body = column(gravity = Gravity.CENTER_HORIZONTAL)
+        body.setPadding(dp(28), dp(34), dp(28), dp(50))
+        body.addView(backHeader("Sign in"), matchWrap(bottom = 14))
+        body.addView(text("SERVER", 11f, teal, bold = true).apply {
+            gravity = Gravity.CENTER
+            letterSpacing = .14f
+        })
+        body.addView(text(server, 11f, muted, maxLines = 2).apply {
+            gravity = Gravity.CENTER
+        }, matchWrap(top = 3, bottom = 16))
+
+        val username = input("Username", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_NORMAL)
+        val password = input("Password", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        body.addView(username, matchFixed(dp(50), bottom = 10))
+        body.addView(password, matchFixed(dp(50), bottom = 16))
+
+        val signIn = actionButton("Sign in", primary = true)
+        val quick = actionButton("Use Quick Connect", primary = false)
+        body.addView(signIn, matchFixed(dp(50), bottom = 9))
+        body.addView(quick, matchFixed(dp(46)))
+
+        signIn.setOnClickListener {
+            val name = username.text.toString().trim()
+            val pass = password.text.toString()
+            if (name.isBlank() || pass.isBlank()) {
+                toast("Enter your username and password")
+                return@setOnClickListener
+            }
+            signIn.isEnabled = false
+            signIn.text = "Signing in..."
+            val pending = Session(server, "", "", "", store.deviceId())
+            val pendingApi = JellyfinApi(pending)
+            work(
+                block = { pendingApi.authenticate(name, pass) },
+                success = { authenticated ->
+                    store.save(authenticated)
+                    session = authenticated
+                    api = JellyfinApi(authenticated)
+                    navigate(Screen.Home, replace = true)
+                },
+                failure = {
+                    signIn.isEnabled = true
+                    signIn.text = "Sign in"
+                    toast("Sign-in failed: ${friendlyError(it)}")
+                }
+            )
+        }
+        quick.setOnClickListener { beginQuickConnect(server) }
+        setContent(screen(body))
+    }
+
+    private fun discoverServers() {
+        val token = generation
+        setContent(loading("Finding Jellyfin servers..."))
+        work(
+            block = {
+                discoveryCandidates()
+                    .mapNotNull { candidate -> runCatching { JellyfinApi.discoverServer(candidate) }.getOrNull() }
+                    .distinctBy { it.url }
+            },
+            success = { if (token == generation) renderServerDiscovery(it) },
+            failure = { if (token == generation) renderServerDiscovery(emptyList()) }
+        )
+    }
+
+    private fun renderServerDiscovery(servers: List<DiscoveredServer>) {
+        val body = column()
+        body.setPadding(dp(22), dp(34), dp(22), dp(52))
+        body.addView(backHeader("Find server"), matchWrap(bottom = 12))
+        if (servers.isEmpty()) {
+            body.addView(emptyState("No Jellyfin servers found"))
+            val retry = actionButton("Try again", primary = true)
+            body.addView(retry, matchFixed(dp(48), top = 12, bottom = 8))
+            retry.setOnClickListener { discoverServers() }
+        } else {
+            servers.forEach { server ->
+                body.addView(serverRow(server), matchWrap(bottom = 8))
+            }
+        }
+        val manual = actionButton("Enter address", primary = false)
+        body.addView(manual, matchFixed(dp(46), top = 8))
+        manual.setOnClickListener { navigate(Screen.Login) }
+        setContent(screen(body))
+    }
+
+    private fun serverRow(server: DiscoveredServer): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = rounded(panel, 18f)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        val labels = column()
+        labels.addView(text(server.name, 15f, Color.WHITE, bold = true, maxLines = 1))
+        labels.addView(text("${server.url}\n${server.version}", 11f, muted, maxLines = 2), matchWrap(top = 2))
+        row.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(text("›", 24f, teal))
+        row.setOnClickListener { navigate(Screen.ManualLogin(server.url)) }
+        row.setOnLongClickListener {
+            beginQuickConnect(server.url)
+            true
+        }
+        return row
+    }
+
+    private fun discoveryCandidates() = listOf(
+        "http://jellyfin.local:8096",
+        "https://jellyfin.local",
+        "http://localhost:8096",
+        "http://127.0.0.1:8096"
+    )
 
     private fun pollQuickConnect(
         pendingApi: JellyfinApi,

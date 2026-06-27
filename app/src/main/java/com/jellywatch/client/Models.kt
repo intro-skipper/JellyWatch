@@ -10,6 +10,13 @@ data class Session(
     val deviceId: String
 )
 
+data class DiscoveredServer(
+    val name: String,
+    val url: String,
+    val version: String,
+    val id: String
+)
+
 data class JellyItem(
     val id: String,
     val name: String,

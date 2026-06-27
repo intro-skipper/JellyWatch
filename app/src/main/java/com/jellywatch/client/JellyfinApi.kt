@@ -233,6 +233,31 @@ class JellyfinApi(private val session: Session) {
     private fun fields() = "Overview,PrimaryImageAspectRatio,MediaSources,MediaStreams,Path,ParentId,SeriesId,SeasonId"
 
     companion object {
+        private val discoveryClient = OkHttpClient.Builder()
+            .connectTimeout(1500, TimeUnit.MILLISECONDS)
+            .readTimeout(1500, TimeUnit.MILLISECONDS)
+            .build()
+
+        fun discoverServer(raw: String): DiscoveredServer {
+            val server = normalizeServer(raw)
+            val request = Request.Builder()
+                .url("${server.trimEnd('/')}/System/Info/Public")
+                .header("Accept", "application/json")
+                .build()
+            discoveryClient.newCall(request).execute().use { response ->
+                val text = response.body.string()
+                if (!response.isSuccessful) throw IOException("Server returned ${response.code}")
+                val json = JSONObject(text)
+                val name = json.optString("ServerName").takeIf { it.isNotBlank() } ?: "Jellyfin"
+                return DiscoveredServer(
+                    name = name,
+                    url = server,
+                    version = json.optString("Version").takeIf { it.isNotBlank() } ?: "Unknown version",
+                    id = json.optString("Id")
+                )
+            }
+        }
+
         fun normalizeServer(raw: String): String {
             var server = raw.trim().trimEnd('/')
             if (!server.startsWith("http://") && !server.startsWith("https://")) {
