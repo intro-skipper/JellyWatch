@@ -125,14 +125,13 @@ class PlayerActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (shouldPlayWhenActive) player?.play()
+        player?.playWhenReady = shouldPlayWhenActive
         showControls()
         handler.removeCallbacks(controlsProgressUpdater)
         handler.post(controlsProgressUpdater)
     }
 
     override fun onPause() {
-        shouldPlayWhenActive = player?.playWhenReady == true
         player?.pause()
         handler.removeCallbacks(progressReporter)
         handler.removeCallbacks(controlsProgressUpdater)
@@ -312,6 +311,10 @@ class PlayerActivity : Activity() {
                     updateControls()
                 }
 
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                    updateControls()
+                }
+
                 override fun onPlayerError(error: PlaybackException) {
                     handlePlaybackError(exoPlayer, error)
                 }
@@ -371,9 +374,13 @@ class PlayerActivity : Activity() {
     }
 
     private fun report(event: String) {
-        val positionTicks = (player?.currentPosition ?: resumePositionMs()) * 10_000L
+        val exoPlayer = player
+        val positionTicks = (exoPlayer?.currentPosition ?: resumePositionMs()) * 10_000L
+        val isPaused = exoPlayer?.playWhenReady != true
+        val playMethod = if (usingTranscodeFallback) "Transcode" else "DirectPlay"
+        val mediaSourceId = jellyItem.mediaSourceId ?: jellyItem.id
         reporter.execute {
-            api.reportPlayback(event, jellyItem.id, playSessionId, positionTicks)
+            api.reportPlayback(event, jellyItem.id, playSessionId, positionTicks, isPaused, playMethod, mediaSourceId)
         }
     }
 
@@ -478,19 +485,19 @@ class PlayerActivity : Activity() {
         controlsVisible = visible
         controlsOverlay.visibility = if (visible) View.VISIBLE else View.GONE
         handler.removeCallbacks(controlsHider)
-        if (visible && player?.isPlaying == true && !isScrubbing) {
+        if (visible && player?.playWhenReady == true && !isScrubbing) {
             handler.postDelayed(controlsHider, CONTROLS_TIMEOUT_MS)
         }
     }
 
     private fun togglePlayback() {
         val exoPlayer = player ?: return
-        if (exoPlayer.isPlaying) {
+        if (exoPlayer.playWhenReady) {
             shouldPlayWhenActive = false
             exoPlayer.pause()
         } else {
             shouldPlayWhenActive = true
-            exoPlayer.play()
+            exoPlayer.playWhenReady = true
         }
         updateControls()
     }
@@ -524,9 +531,9 @@ class PlayerActivity : Activity() {
     private fun updateControls() {
         if (!::playPause.isInitialized || !::seekBar.isInitialized || !::progressFill.isInitialized) return
         val exoPlayer = player
-        val isPlaying = exoPlayer?.isPlaying == true
-        playPause.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play_arrow)
-        playPause.contentDescription = if (isPlaying) "Pause" else "Play"
+        val wantsPlayback = exoPlayer?.playWhenReady == true
+        playPause.setImageResource(if (wantsPlayback) R.drawable.ic_pause else R.drawable.ic_play_arrow)
+        playPause.contentDescription = if (wantsPlayback) "Pause" else "Play"
         val currentTicks = (exoPlayer?.currentPosition ?: 0L) * 10_000L
         updateSegmentSkipButton(currentTicks)
         val duration = exoPlayer?.duration ?: C.TIME_UNSET

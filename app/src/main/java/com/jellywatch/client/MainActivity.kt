@@ -131,7 +131,7 @@ class MainActivity : Activity() {
         body.addView(discover, matchFixed(dp(46), bottom = 14))
         val manual = actionButton("Sign in manually", primary = false)
         body.addView(manual, matchFixed(dp(46), bottom = 9))
-        body.addView(text("Enter the complete address, such as\nhttps://jellyfin.example.com", 11f, muted).apply {
+        body.addView(text("Enter the full address, such as\nhttps://jellyfin.example.com", 11f, muted).apply {
             gravity = Gravity.CENTER
         })
 

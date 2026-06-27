@@ -175,16 +175,24 @@ class JellyfinApi(private val session: Session) {
             .build().toString()
     }
 
-    fun reportPlayback(event: String, itemId: String, playSessionId: String, positionTicks: Long) {
+    fun reportPlayback(
+        event: String,
+        itemId: String,
+        playSessionId: String,
+        positionTicks: Long,
+        isPaused: Boolean,
+        playMethod: String,
+        mediaSourceId: String
+    ) {
         val body = JSONObject()
             .put("ItemId", itemId)
             .put("PlaySessionId", playSessionId)
             .put("PositionTicks", positionTicks)
             .put("CanSeek", true)
-            .put("IsPaused", false)
+            .put("IsPaused", isPaused)
             .put("IsMuted", false)
-            .put("PlayMethod", "Transcode")
-            .put("MediaSourceId", itemId)
+            .put("PlayMethod", playMethod)
+            .put("MediaSourceId", mediaSourceId)
             .toString()
         val path = if (event.isBlank()) "Sessions/Playing" else "Sessions/Playing/$event"
         runCatching { request(path, "POST", body) }
