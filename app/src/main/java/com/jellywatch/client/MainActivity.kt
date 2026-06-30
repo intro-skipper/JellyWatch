@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -27,6 +28,8 @@ import android.widget.ScrollView
 import android.widget.Space
 import android.widget.TextView
 import android.widget.Toast
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import java.util.concurrent.Executors
 import java.security.cert.CertPathValidatorException
 import javax.net.ssl.SSLHandshakeException
@@ -49,6 +52,7 @@ class MainActivity : Activity() {
     private val main = Handler(Looper.getMainLooper())
     private val history = mutableListOf<Screen>()
     private var generation = 0
+    private var backCallback: OnBackInvokedCallback? = null
 
     private sealed class Screen {
         data object Login : Screen()
@@ -71,21 +75,44 @@ class MainActivity : Activity() {
         homePreferences = HomeScreenPreferences(this)
         session = store.load()
         api = session?.let(::JellyfinApi)
+        registerBackGestureHandler()
         navigate(if (session == null) Screen.Login else Screen.Home, replace = true)
     }
 
     override fun onDestroy() {
+        unregisterBackGestureHandler()
         worker.shutdownNow()
         super.onDestroy()
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        handleBackNavigation()
+    }
+
+    private fun registerBackGestureHandler() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backCallback = OnBackInvokedCallback { handleBackNavigation() }
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                requireNotNull(backCallback)
+            )
+        }
+    }
+
+    private fun unregisterBackGestureHandler() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backCallback?.let(onBackInvokedDispatcher::unregisterOnBackInvokedCallback)
+            backCallback = null
+        }
+    }
+
+    private fun handleBackNavigation() {
         if (history.size > 1) {
             history.removeAt(history.lastIndex)
             render(history.last())
         } else {
-            super.onBackPressed()
+            finishAndRemoveTask()
         }
     }
 
@@ -845,7 +872,7 @@ class MainActivity : Activity() {
         val back = actionButton("‹", primary = false)
         row.addView(back, LinearLayout.LayoutParams(dp(46), dp(42)).apply { marginEnd = dp(9) })
         row.addView(text(title, 21f, Color.WHITE, bold = true, maxLines = 2), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        back.setOnClickListener { onBackPressed() }
+        back.setOnClickListener { handleBackNavigation() }
         return row
     }
 
