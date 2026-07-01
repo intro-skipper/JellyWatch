@@ -130,7 +130,7 @@ class JellyfinApi(private val session: Session) {
             .appendQueryParameter("tag", tag)
             .appendQueryParameter("fillWidth", width.toString())
             .appendQueryParameter("quality", "80")
-            .appendQueryParameter("api_key", session.token)
+            .appendApiKey()
             .build().toString()
     }
 
@@ -146,7 +146,6 @@ class JellyfinApi(private val session: Session) {
             .appendQueryParameter("DeviceId", session.deviceId)
             .appendQueryParameter("PlaySessionId", playSessionId)
             .appendQueryParameter("MediaSourceId", sourceId)
-            .appendQueryParameter("api_key", session.token)
             .appendQueryParameter("VideoCodec", "h264")
             .appendQueryParameter("AudioCodec", "aac")
             .appendQueryParameter("VideoBitRate", "2200000")
@@ -158,6 +157,7 @@ class JellyfinApi(private val session: Session) {
             .appendQueryParameter("SegmentContainer", "ts")
             .appendQueryParameter("MinSegments", "1")
             .appendQueryParameter("BreakOnNonKeyFrames", "true")
+            .appendApiKey()
             .build().toString()
     }
 
@@ -171,7 +171,7 @@ class JellyfinApi(private val session: Session) {
         return Uri.parse(base).buildUpon()
             .appendQueryParameter("Static", "true")
             .appendQueryParameter("MediaSourceId", sourceId)
-            .appendQueryParameter("api_key", session.token)
+            .appendApiKey()
             .build().toString()
     }
 
@@ -208,6 +208,7 @@ class JellyfinApi(private val session: Session) {
         val builder = Request.Builder()
             .url(url)
             .header("Accept", "application/json")
+            .header("Authorization", authorization(includeToken))
             .header("X-Emby-Authorization", authorization(includeToken))
         if (method == "POST") {
             builder.post((jsonBody ?: "{}").toRequestBody("application/json; charset=utf-8".toMediaType()))
@@ -227,6 +228,11 @@ class JellyfinApi(private val session: Session) {
     private fun authorization(includeToken: Boolean): String {
         val token = if (includeToken && session.token.isNotBlank()) ", Token=\"${session.token}\"" else ""
         return "MediaBrowser Client=\"JellyWatch\", Device=\"Galaxy Watch\", DeviceId=\"${session.deviceId}\", Version=\"1.0.0\"$token"
+    }
+
+    private fun Uri.Builder.appendApiKey(): Uri.Builder {
+        appendQueryParameter("ApiKey", session.token)
+        return appendQueryParameter("api_key", session.token)
     }
 
     private fun itemsFrom(json: JSONObject, rootArray: Boolean = false): List<JellyItem> {
