@@ -54,4 +54,4 @@ This MVP intentionally focuses on the "watch loop": find something quickly, resu
 
 - **Certificates**: HTTPS certificates from public CAs work automatically. For private/self-signed CAs, you must install the CA certificate as a trusted user credential on the watch first. Certificate validation is never disabled for security.
 - **Omissions**: Subtitles, offline downloads, and server discovery are not yet implemented.
-- **Privacy**: Credentials are stored in the app's private SharedPreferences. Always use HTTPS when connecting over untrusted networks.
+- **Privacy**: See [PRIVACY.md](PRIVACY.md). JellyWatch stores the Jellyfin token and app preferences in the app's private SharedPreferences and does not include analytics, ads, or crash-reporting SDKs. Always use HTTPS when connecting over untrusted networks.
