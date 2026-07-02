@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.JellyWatch" parent="android:style/Theme.Material.NoActionBar">
+    <style name="Theme.JellyWatch.Base" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowBackground">@color/black</item>
         <item name="android:colorAccent">@color/jelly_teal</item>
         <item name="android:navigationBarColor">@color/black</item>
         <item name="android:statusBarColor">@color/black</item>
         <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="Theme.JellyWatch" parent="Theme.JellyWatch.Base">
+        <item name="android:windowBackground">@drawable/startup_splash_background</item>
     </style>
 </resources>

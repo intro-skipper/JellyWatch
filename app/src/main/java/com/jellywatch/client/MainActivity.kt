@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.InputType
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -92,7 +93,10 @@ class MainActivity : Activity() {
 
     private fun registerBackGestureHandler() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            backCallback = OnBackInvokedCallback { handleBackNavigation() }
+            backCallback = OnBackInvokedCallback {
+                window.decorView.performHapticFeedback(HapticFeedbackConstants.GESTURE_END)
+                handleBackNavigation()
+            }
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
                 OnBackInvokedDispatcher.PRIORITY_DEFAULT,
                 requireNotNull(backCallback)
