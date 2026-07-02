@@ -26,8 +26,8 @@ android {
         applicationId = "com.jellywatch.client"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
 
     signingConfigs {
@@ -69,8 +69,8 @@ android {
 }
 
 dependencies {
-    implementation("androidx.media3:media3-exoplayer:1.9.3")
-    implementation("androidx.media3:media3-exoplayer-hls:1.9.3")
-    implementation("androidx.media3:media3-ui:1.9.3")
-    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    implementation("androidx.media3:media3-exoplayer:1.10.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.10.1")
+    implementation("androidx.media3:media3-ui:1.10.1")
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
 }
