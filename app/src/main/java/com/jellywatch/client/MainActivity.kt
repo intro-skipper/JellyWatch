@@ -895,7 +895,9 @@ class MainActivity : Activity() {
 
     private fun ScrollView.showVerticalScrollbar() {
         isVerticalScrollBarEnabled = true
-        isScrollbarFadingEnabled = false
+        isScrollbarFadingEnabled = true
+        setScrollBarDefaultDelayBeforeFade(900)
+        setScrollBarFadeDuration(300)
         scrollBarStyle = View.SCROLLBARS_INSIDE_INSET
         scrollBarSize = dp(3)
         verticalScrollbarThumbDrawable = scrollbarThumb()
@@ -904,7 +906,9 @@ class MainActivity : Activity() {
 
     private fun HorizontalScrollView.showHorizontalScrollbar() {
         isHorizontalScrollBarEnabled = true
-        isScrollbarFadingEnabled = false
+        isScrollbarFadingEnabled = true
+        setScrollBarDefaultDelayBeforeFade(900)
+        setScrollBarFadeDuration(300)
         scrollBarStyle = View.SCROLLBARS_INSIDE_INSET
         scrollBarSize = dp(3)
         horizontalScrollbarThumbDrawable = scrollbarThumb()
