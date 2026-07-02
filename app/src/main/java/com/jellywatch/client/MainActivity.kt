@@ -141,30 +141,33 @@ class MainActivity : Activity() {
     }
 
     private fun renderLogin() {
-        val body = column(gravity = Gravity.CENTER_HORIZONTAL)
-        body.setPadding(dp(30), dp(38), dp(30), dp(48))
+        val body = column()
+        val form = column(gravity = Gravity.CENTER_HORIZONTAL)
+        form.setPadding(dp(30), dp(38), dp(30), dp(22))
 
         val logo = ImageView(this).apply {
             setImageResource(com.jellywatch.client.R.drawable.ic_jellywatch)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
         }
-        body.addView(logo, LinearLayout.LayoutParams(dp(82), dp(82)))
-        body.addView(text("JellyWatch", 24f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER })
-        body.addView(text("Jellyfin, right on your wrist", 13f, muted).apply { gravity = Gravity.CENTER })
-        body.addView(space(22))
+        form.addView(logo, LinearLayout.LayoutParams(dp(82), dp(82)))
+        form.addView(text("JellyWatch", 24f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER })
+        form.addView(text("Jellyfin, right on your wrist", 13f, muted).apply { gravity = Gravity.CENTER })
+        form.addView(space(22))
 
         val server = input("Server address", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
-        body.addView(server, matchFixed(dp(50), bottom = 15))
+        form.addView(server, matchFixed(dp(50), bottom = 15))
 
         val quickConnect = actionButton("Quick Connect", primary = true)
-        body.addView(quickConnect, matchFixed(dp(50), bottom = 9))
+        form.addView(quickConnect, matchFixed(dp(50), bottom = 9))
         val discover = actionButton("Find server", primary = false)
-        body.addView(discover, matchFixed(dp(46), bottom = 14))
+        form.addView(discover, matchFixed(dp(46), bottom = 9))
         val manual = actionButton("Sign in manually", primary = false)
-        body.addView(manual, matchFixed(dp(46), bottom = 9))
-        body.addView(text("Enter the full address, such as\nhttps://jellyfin.example.com", 11f, muted).apply {
+        form.addView(manual, matchFixed(dp(46), bottom = 14))
+        form.addView(text("Enter the full address, such as\nhttps://jellyfin.example.com", 11f, muted).apply {
             gravity = Gravity.CENTER
         })
+        body.addView(form)
+        body.addView(signInImage())
 
         quickConnect.setOnClickListener {
             val normalized = runCatching { JellyfinApi.normalizeServer(server.text.toString()) }
@@ -200,6 +203,17 @@ class MainActivity : Activity() {
         }
         discover.setOnClickListener { navigate(Screen.ServerDiscovery) }
         setContent(screen(body))
+    }
+
+    private fun signInImage(): View = ImageView(this).apply {
+        setImageResource(com.jellywatch.client.R.drawable.signin_made_with_ai)
+        scaleType = ImageView.ScaleType.CENTER_CROP
+        adjustViewBounds = false
+    }.also { image ->
+        image.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            resources.displayMetrics.heightPixels
+        )
     }
 
     private fun beginQuickConnect(server: String) {
