@@ -1,6 +1,10 @@
+<p align="center">
+  <a href="https://play.google.com/store/apps/details?id=com.jellywatch.client"><img alt='Get it on Google Play' src='https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png'/></a>
+</p>
+
 # JellyWatch
 
-A small, watch-native Jellyfin client built for Samsung Galaxy Watch 7 and other modern Wear OS watches.
+A lightweight, watch-native Jellyfin client built for modern Wear OS watches.
 
 ## Features
 
