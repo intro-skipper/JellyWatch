@@ -20,14 +20,10 @@
         <activity
             android:name=".PlayerActivity"
             android:exported="false"
-            android:label="@string/app_name"
-            android:screenOrientation="portrait"
             android:taskAffinity="" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
-            android:screenOrientation="portrait"
             android:taskAffinity="">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
