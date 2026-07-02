@@ -581,7 +581,7 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         items.forEach { row.addView(posterCard(it, resumeDirectly), LinearLayout.LayoutParams(dp(116), dp(176)).apply { marginEnd = dp(8) }) }
         val scroll = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
+            showHorizontalScrollbar()
             isFillViewport = false
             addView(row)
         }
@@ -889,8 +889,26 @@ class MainActivity : Activity() {
     private fun screen(body: View): View = ScrollView(this).apply {
         setBackgroundColor(this@MainActivity.background)
         isFillViewport = true
-        isVerticalScrollBarEnabled = false
+        showVerticalScrollbar()
         addView(body, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun ScrollView.showVerticalScrollbar() {
+        isVerticalScrollBarEnabled = true
+        isScrollbarFadingEnabled = false
+        scrollBarStyle = View.SCROLLBARS_INSIDE_INSET
+        scrollBarSize = dp(3)
+        verticalScrollbarThumbDrawable = scrollbarThumb()
+        verticalScrollbarTrackDrawable = scrollbarTrack()
+    }
+
+    private fun HorizontalScrollView.showHorizontalScrollbar() {
+        isHorizontalScrollBarEnabled = true
+        isScrollbarFadingEnabled = false
+        scrollBarStyle = View.SCROLLBARS_INSIDE_INSET
+        scrollBarSize = dp(3)
+        horizontalScrollbarThumbDrawable = scrollbarThumb()
+        horizontalScrollbarTrackDrawable = scrollbarTrack()
     }
 
     private fun column(gravity: Int = Gravity.NO_GRAVITY) = LinearLayout(this).apply {
@@ -957,6 +975,16 @@ class MainActivity : Activity() {
         setColor(color)
         cornerRadius = dp(radiusDp.toInt()).toFloat()
         if (strokeColor != null) setStroke(dp(1), strokeColor)
+    }
+
+    private fun scrollbarThumb() = GradientDrawable().apply {
+        setColor(Color.argb(230, 255, 255, 255))
+        cornerRadius = dp(2).toFloat()
+    }
+
+    private fun scrollbarTrack() = GradientDrawable().apply {
+        setColor(Color.argb(55, 255, 255, 255))
+        cornerRadius = dp(2).toFloat()
     }
 
     private fun matchWrap(top: Int = 0, bottom: Int = 0) =
