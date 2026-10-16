@@ -3,7 +3,6 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -20,7 +19,7 @@ val hasSigningInfo = !keystorePassword.isNullOrBlank() &&
 
 android {
     namespace = "com.jellywatch.client"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.jellywatch.client"
@@ -61,10 +60,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 }
 
